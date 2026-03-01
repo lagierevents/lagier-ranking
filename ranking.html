@@ -45,8 +45,6 @@
         const hoja = params.get('hoja') || 'RANKING NEW YORK';
         let alumnosDb = [];
 
-        // Usamos tqx=out:json&headers=1 para que gviz NO consuma la fila 1 como cabecera
-        // y en su lugar la tratemos nosotros como datos
         fetch(`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&headers=0&sheet=${encodeURIComponent(hoja)}`)
             .then(res => res.text())
             .then(raw => {
@@ -55,83 +53,12 @@
 
                 document.getElementById('tit-grupo').innerText = "🏆 " + hoja.replace("RANKING ", "");
 
-                // Con headers=0, la fila 1 del Excel = filas[0], fila 2 = filas[1], etc.
-                // filas[0] = cabeceras (CLASS, EXAM, N, ALUMNO, apellido, NICK, ENERO SEMANA..., ...)
+                // filas[0] = fila 1 del Excel (cabeceras: CLASS, EXAM, N, ALUMNO, apellido, NICK, ENERO SEMANA...)
                 // filas[1] en adelante = alumnos
 
-                // Leer nombres de sesión desde filas[0], columnas >= 6
                 let sesiones = [];
                 const listaSesionesEl = document.getElementById('lista-sesiones');
                 const cabeceras = filas[0].c || [];
 
                 for (let i = 6; i < cabeceras.length; i++) {
                     let celda = cabeceras[i];
-                    let nombre = (celda && celda.v !== null && celda.v !== undefined) ? String(celda.v).trim() : '';
-                    if (nombre && nombre !== '0') {
-                        sesiones.push({ nombre, col: i });
-                        listaSesionesEl.innerHTML += `<div class="fecha-btn" onclick="verSesion('${nombre.replace(/'/g,"\\'")}',${i})">${nombre}</div>`;
-                    }
-                }
-
-                // Leer alumnos desde filas[1] en adelante
-                for (let i = 1; i < filas.length; i++) {
-                    if (!filas[i] || !filas[i].c) continue;
-                    let celdaNick = filas[i].c[5];
-                    let nick = (celdaNick && celdaNick.v !== null) ? String(celdaNick.v).trim() : '';
-                    if (!nick) continue;
-
-                    // Media solo de exámenes realizados (nota numérica > 0)
-                    let validas = sesiones.map(s => {
-                        let celda = filas[i].c[s.col];
-                        return (celda && typeof celda.v === 'number' && celda.v > 0) ? celda.v : null;
-                    }).filter(n => n !== null);
-
-                    let media = validas.length ? validas.reduce((a, b) => a + b, 0) / validas.length : 0;
-                    alumnosDb.push({ nick, media, fila: filas[i].c });
-                }
-
-                const renderRanking = (datos, contenedor, esMedia) => {
-                    const medals = ['🥇', '🥈', '🥉'];
-                    const classes = ['gold', 'silver', 'bronze'];
-                    contenedor.innerHTML = "";
-                    datos.forEach((al, idx) => {
-                        let icono = idx < 3 ? `<span class="medal-icon">${medals[idx]}</span>` : `${idx + 1}`;
-                        let clase = idx < 3 ? classes[idx] : '';
-                        let valor = esMedia ? al.media.toFixed(1) : al.nota;
-                        contenedor.innerHTML += `
-                            <div class="row">
-                                <span class="${clase}">${icono} &nbsp; ${al.nick}</span>
-                                <span class="${clase}">${valor}</span>
-                            </div>`;
-                    });
-                };
-
-                alumnosDb.sort((a, b) => b.media - a.media);
-                renderRanking(alumnosDb, document.getElementById('rank-gen'), true);
-
-                window.verSesion = (nombre, col) => {
-                    document.getElementById('vista-grupo').classList.add('hidden');
-                    document.getElementById('vista-sesion').classList.remove('hidden');
-                    document.getElementById('tit-sesion').innerText = "🎧 " + nombre;
-                    let rS = alumnosDb
-                        .map(al => ({
-                            nick: al.nick,
-                            nota: (al.fila[col] && typeof al.fila[col].v === 'number') ? al.fila[col].v : 0
-                        }))
-                        .filter(a => a.nota > 0)
-                        .sort((a, b) => b.nota - a.nota);
-                    renderRanking(rS, document.getElementById('rank-sesion'), false);
-                };
-            })
-            .catch(err => {
-                document.getElementById('tit-grupo').innerText = "❌ Error cargando datos";
-                console.error(err);
-            });
-
-        window.volver = () => {
-            document.getElementById('vista-sesion').classList.add('hidden');
-            document.getElementById('vista-grupo').classList.remove('hidden');
-        };
-    </script>
-</body>
-</html>
